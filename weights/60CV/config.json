@@ -1,0 +1,196 @@
+{
+    "name": "Video_Vit_60CV_GraphEmbd",
+    "n_gpu": 2,
+    "pretrain": "",
+    "arch": {
+        "type": "VideoViT_GraphEmbd_STB",
+        "args": {
+            "image_size": [
+                25,
+                2
+            ],
+            "image_patch_size": [
+                1,
+                1
+            ],
+            "frames": 64,
+            "frame_patch_size": 4,
+            "num_classes": 60,
+            "dim": 96,
+            "spatial_depth": 6,
+            "temporal_depth": 6,
+            "heads": 8,
+            "mlp_dim": 384,
+            "pool": "cls",
+            "channels": 3,
+            "dim_head": 32,
+            "dropout": 0.1,
+            "emb_dropout": 0.1,
+            "variant": "factorized_encoder"
+        }
+    },
+    "data_loader": {
+        "type": "NPZNTUDataLoader",
+        "args": {
+            "data_dir": "data_npz/NTU60_CV.npz",
+            "batch_size": 128,
+            "shuffle": true,
+            "validation_split": 0.2,
+            "num_workers": 64,
+            "persistent_workers": true
+        }
+    },
+    "optimizer": {
+        "type": "AdamW",
+        "args": {
+            "lr": 0.001,
+            "weight_decay": 0.1
+        }
+    },
+    "loss": {
+        "type": "CrossEntropyLoss",
+        "args": {
+            "label_smoothing": 0.1
+        }
+    },
+    "metrics": [
+        "accuracy",
+        "top_k_acc"
+    ],
+    "lr_scheduler": {
+        "type": "CosineLRScheduler",
+        "args": {
+            "warm_up_epoch": 25,
+            "lr_min": 1e-05,
+            "warmup_lr_init": 1e-07,
+            "warmup_prefix": false,
+            "t_in_epochs": false
+        }
+    },
+    "trainer": {
+        "epochs": 500,
+        "save_dir": "saved",
+        "save_period": 1,
+        "verbosity": 1,
+        "monitor": "min val_loss",
+        "early_stop": 35,
+        "tensorboard": true
+    },
+    "preprocessing": {
+        "type": "SkelHARPreprocessing",
+        "args": {
+            "num_joints": 25,
+            "num_frames": 300,
+            "num_classes": 60,
+            "checkpoint_interval": 10000,
+            "raw_data_dir": "data/nturgbd/nturgb+d_skeletons",
+            "pt_data_dir": "data_pt",
+            "task": "nturgbd-cross-subject",
+            "pad_frame": false,
+            "method": "max",
+            "major_only": -1
+        }
+    },
+    "evaluation_option": {
+        "nturgbd": {
+            "cross-subject": {
+                "training_subject": [
+                    1,
+                    2,
+                    4,
+                    5,
+                    8,
+                    9,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    25,
+                    27,
+                    28,
+                    31,
+                    34,
+                    35,
+                    38
+                ],
+                "testing_subject": true
+            },
+            "cross-view": {
+                "training_view": [
+                    2,
+                    3
+                ],
+                "testing_view": [
+                    1
+                ]
+            }
+        },
+        "nturgbd120": {
+            "corss-subject": {
+                "training_subject": [
+                    1,
+                    2,
+                    4,
+                    5,
+                    8,
+                    9,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    25,
+                    27,
+                    28,
+                    31,
+                    34,
+                    35,
+                    38,
+                    45,
+                    46,
+                    47,
+                    49,
+                    50,
+                    52,
+                    53,
+                    54,
+                    55,
+                    56,
+                    57,
+                    58,
+                    59,
+                    70,
+                    74,
+                    78,
+                    80,
+                    81,
+                    82,
+                    83,
+                    84,
+                    85,
+                    86,
+                    89,
+                    91,
+                    92,
+                    93,
+                    94,
+                    95,
+                    97,
+                    98,
+                    100,
+                    103
+                ],
+                "testing_subject": true
+            },
+            "cross-setup": {
+                "training_setup": "ODD",
+                "testing_setup": "EVEN"
+            }
+        }
+    }
+}

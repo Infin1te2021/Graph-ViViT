@@ -107,10 +107,10 @@ def main(config):
     dataset, code = match.groups() if match else ('Unknown', 'Unknown')
 
     test_type_mapping = {
-      '60CV': 'Cross View',
-      '60CS': 'Cross Subject',
-      '120CSet': 'Cross Set',
-      '120CSub': 'Cross Subject'
+      'CV': 'Cross View',
+      'CS': 'Cross Subject',
+      'CSet': 'Cross Set',
+      'CSub': 'Cross Subject'
     }
     test_name = test_type_mapping.get(code, 'Unknown Test')
 
@@ -120,9 +120,9 @@ def main(config):
     })
     plt.xlabel('Predicted Labels')
     plt.ylabel('True Labels')
-    plt.title(f'VideoViT: NTU-RGB+D {dataset} {test_name} Test Confusion Matrix')
+    plt.title(f'Graph-ViViT: NTU-RGB+D {dataset} {test_name} Test Confusion Matrix')
     plt.tight_layout()
-    plt.savefig(f'video_vit_{dataset}_{code.lower()}_CM.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(f'graphvivit_{dataset}_{code.lower()}_CM.pdf', format='pdf', bbox_inches='tight')
     
   n_samples = len(data_loader.sampler)
   log = {'loss': total_loss / n_samples}
