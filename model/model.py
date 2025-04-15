@@ -36,12 +36,12 @@ class VideoViT_GraphEmbd_STB(nn.Module):
     self.global_average_pool = pool == 'mean'
 
     if spatial_bias:
-      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size)
+      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size, spatial_masked=True)
     else:
       self.spatial_attn_bias = None
 
     if temporal_bias:
-      self.temporal_attn_bias = GraphAttnBiasTemporal(num_heads=heads, temporal_hidden_dim=64, num_frame_patches=num_frame_patches)
+      self.temporal_attn_bias = GraphAttnBiasTemporal(num_heads=heads, temporal_hidden_dim=64, num_frame_patches=num_frame_patches, temporal_masked=True)
     else:
       self.temporal_attn_bias = None
 
@@ -125,7 +125,7 @@ class VideoViT_GraphEmbd_STB(nn.Module):
 
   
 if __name__ == "__main__":
-  model = VideoViT_GraphEmbd_STB(image_size=[25,2], image_patch_size=[1, 1], frames=64, frame_patch_size=4, num_classes=60, dim=96, spatial_depth=6, temporal_depth=6, heads=8, mlp_dim=384, pool='cls', channels=3, dim_head=32, dropout=0.1, emb_dropout=0.1, variant='factorized_encoder')
-  x = torch.randn((16, 3, 64, 25, 2), dtype=torch.float32)  # [Batch, Channel, Frame, Joint, Number of Human]
-  output = model(x)
+  from torchinfo import summary
+  model = VideoViT_GraphEmbd_STB(image_size=[25,2], image_patch_size=[1, 1], frames=64, frame_patch_size=4, num_classes=60, dim=96, spatial_depth=6, temporal_depth=6, heads=8, mlp_dim=384, pool='cls', channels=3, dim_head=32, dropout=0.1, emb_dropout=0.1, variant='factorized_encoder', spatial_bias=True, temporal_bias=True)
+  summary(model, input_size=(16, 3, 64, 25, 2))
   # torch.onnx.export(model, x, "VideoViT_GraphEmbd_STB.onnx", input_names=["input"], dynamo=True)
