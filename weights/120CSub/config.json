@@ -1,5 +1,5 @@
 {
-    "name": "Video_Vit_120CSub_GraphEmbd",
+    "name": "120CSub",
     "n_gpu": 2,
     "pretrain": "",
     "arch": {
@@ -26,13 +26,15 @@
             "dim_head": 32,
             "dropout": 0.1,
             "emb_dropout": 0.1,
-            "variant": "factorized_encoder"
+            "variant": "factorized_encoder",
+            "spatial_bias": true, 
+            "temporal_bias": true
         }
     },
     "data_loader": {
         "type": "NPZNTUDataLoader",
         "args": {
-            "data_dir": "data_npz/NTU120_CSub.npz",
+            "data_dir": "data/ntu120/NTU120_CSub.npz",
             "batch_size": 128,
             "shuffle": true,
             "validation_split": 0.2,
@@ -75,122 +77,5 @@
         "monitor": "min val_loss",
         "early_stop": 35,
         "tensorboard": true
-    },
-    "preprocessing": {
-        "type": "SkelHARPreprocessing",
-        "args": {
-            "num_joints": 25,
-            "num_frames": 300,
-            "num_classes": 60,
-            "checkpoint_interval": 10000,
-            "raw_data_dir": "data/nturgbd/nturgb+d_skeletons",
-            "pt_data_dir": "data_pt",
-            "task": "nturgbd-cross-subject",
-            "pad_frame": false,
-            "method": "max",
-            "major_only": -1
-        }
-    },
-    "evaluation_option": {
-        "nturgbd": {
-            "cross-subject": {
-                "training_subject": [
-                    1,
-                    2,
-                    4,
-                    5,
-                    8,
-                    9,
-                    13,
-                    14,
-                    15,
-                    16,
-                    17,
-                    18,
-                    19,
-                    25,
-                    27,
-                    28,
-                    31,
-                    34,
-                    35,
-                    38
-                ],
-                "testing_subject": true
-            },
-            "cross-view": {
-                "training_view": [
-                    2,
-                    3
-                ],
-                "testing_view": [
-                    1
-                ]
-            }
-        },
-        "nturgbd120": {
-            "corss-subject": {
-                "training_subject": [
-                    1,
-                    2,
-                    4,
-                    5,
-                    8,
-                    9,
-                    13,
-                    14,
-                    15,
-                    16,
-                    17,
-                    18,
-                    19,
-                    25,
-                    27,
-                    28,
-                    31,
-                    34,
-                    35,
-                    38,
-                    45,
-                    46,
-                    47,
-                    49,
-                    50,
-                    52,
-                    53,
-                    54,
-                    55,
-                    56,
-                    57,
-                    58,
-                    59,
-                    70,
-                    74,
-                    78,
-                    80,
-                    81,
-                    82,
-                    83,
-                    84,
-                    85,
-                    86,
-                    89,
-                    91,
-                    92,
-                    93,
-                    94,
-                    95,
-                    97,
-                    98,
-                    100,
-                    103
-                ],
-                "testing_subject": true
-            },
-            "cross-setup": {
-                "training_setup": "ODD",
-                "testing_setup": "EVEN"
-            }
-        }
     }
 }

@@ -13,7 +13,7 @@ def pair(t):
 
 
 class VideoViT_GraphEmbd_STB(nn.Module):
-  def __init__(self, *, image_size, image_patch_size, frames, frame_patch_size, num_classes, dim, spatial_depth, temporal_depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., variant = 'factorized_encoder',):
+  def __init__(self, *, image_size, image_patch_size, frames, frame_patch_size, num_classes, dim, spatial_depth, temporal_depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., variant = 'factorized_encoder', spatial_bias=True, temporal_bias=True):
     super().__init__()
     image_height, image_width = pair(tuple(image_size))
     patch_height, patch_width = pair(tuple(image_patch_size))
@@ -35,8 +35,15 @@ class VideoViT_GraphEmbd_STB(nn.Module):
 
     self.global_average_pool = pool == 'mean'
 
-    self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size)
-    self.temporal_attn_bias = GraphAttnBiasTemporal(num_heads=heads, temporal_hidden_dim=64, num_frame_patches=num_frame_patches)
+    if spatial_bias:
+      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size)
+    else:
+      self.spatial_attn_bias = None
+
+    if temporal_bias:
+      self.temporal_attn_bias = GraphAttnBiasTemporal(num_heads=heads, temporal_hidden_dim=64, num_frame_patches=num_frame_patches)
+    else:
+      self.temporal_attn_bias = None
 
     self.to_patch_embedding_nodeFeature = NodeEmbedding(patch_dim, proj_hidden_dim=64, dim=dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
     self.to_patch_embedding_nodeVelocity = NodeEmbedding(patch_dim, proj_hidden_dim=64, dim=dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
@@ -63,8 +70,11 @@ class VideoViT_GraphEmbd_STB(nn.Module):
 
   def forward(self, x):
       
-    spatial_attn_bias = self.spatial_attn_bias(x)
-    temporal_attn_bias = self.temporal_attn_bias(x)
+    if self.spatial_attn_bias is not None:
+      spatial_attn_bias = self.spatial_attn_bias(x)
+
+    if self.temporal_attn_bias is not None:
+      temporal_attn_bias = self.temporal_attn_bias(x)
 
     velocity = torch.zeros_like(x)
     velocity[:, :, 1:, :, :] = torch.diff(x, dim=2)
@@ -88,7 +98,6 @@ class VideoViT_GraphEmbd_STB(nn.Module):
     if self.variant == 'factorized_encoder':
       x = rearrange(x, 'b f n d -> (b f) n d')
       
-      # x = self.spatial_transformer(x, attn_bias=None)
       x = self.spatial_transformer(x, attn_bias=spatial_attn_bias)
       
       x = rearrange(x, '(b f) n d -> b f n d', b = b)
@@ -100,10 +109,8 @@ class VideoViT_GraphEmbd_STB(nn.Module):
 
         x = torch.cat((temporal_cls_tokens, x), dim = 1)
       
-      # x = self.temporal_transformer(x, attn_bias = None)
       x = self.temporal_transformer(x, attn_bias=temporal_attn_bias)
       
-
       x = x[:, 0] if not self.global_average_pool else reduce(x, 'b f d -> b d', 'mean')
     
     elif self.variant == 'factorized_self_attention':

@@ -178,7 +178,12 @@ saved/
 *.out
 
 # data dir
-data_npz/
-data_pt/
+data/nturgbd_raw/
+data/ntu/denoised_data/
+data/ntu/raw_data/
+data/ntu/*.npz
+data/ntu120/denoised_data/
+data/ntu120/raw_data/
+data/ntu120/*.npz
 
 config/
