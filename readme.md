@@ -56,5 +56,6 @@ python seq_transformation.py
 | Type | 60CS | 60CV | 120CSub | 120CSet |
 | --- | ---| --- | --- | --- |
 | Full Masked | 86.20 | 89.67* | 81.70 | 83.73 |
+| Spatial Masked | 86.27 | 88.89* | 81.17 | 79.87* |
 
 \* Denotes early stopped.
