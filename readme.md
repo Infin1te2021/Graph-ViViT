@@ -57,5 +57,6 @@ python seq_transformation.py
 | --- | ---| --- | --- | --- |
 | Full Masked | 86.20 | 89.67* | 81.70 | 83.73 |
 | Spatial Masked | 86.27 | 88.89* | 81.17 | 79.87* |
+| Temporal Masked | 87.69* | 88.87* | 82.85 | 84.83* |
 
 \* Denotes early stopped.
