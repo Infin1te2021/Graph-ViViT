@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from einops import rearrange, reduce, repeat
 
-from model.vit.transformer_module import NodeEmbedding, Transformer, FactorizedTransformer
-from model.vit.bias import GraphAttnBiasSpatial, GraphAttnBiasTemporal, CentralityEncoder
+from vit.transformer_module import NodeEmbedding, Transformer, FactorizedTransformer
+from vit.bias import GraphAttnBiasSpatial, GraphAttnBiasTemporal, CentralityEncoder
 
 def exists(val):
   return val is not None
@@ -13,7 +13,7 @@ def pair(t):
 
 
 class VideoViT_GraphEmbd_STB(nn.Module):
-  def __init__(self, *, image_size, image_patch_size, frames, frame_patch_size, num_classes, dim, spatial_depth, temporal_depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., variant = 'factorized_encoder', spatial_bias=True, temporal_bias=True):
+  def __init__(self, *, image_size, image_patch_size, frames, frame_patch_size, num_classes, dim, spatial_depth, temporal_depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., variant = 'factorized_encoder', spatial_bias=True, temporal_bias=True, emb_method='111'):
     super().__init__()
     image_height, image_width = pair(tuple(image_size))
     patch_height, patch_width = pair(tuple(image_patch_size))
@@ -28,8 +28,14 @@ class VideoViT_GraphEmbd_STB(nn.Module):
 
     patch_dim = channels * patch_height * patch_width * frame_patch_size
 
-    central_dim = int(dim / (patch_height * patch_width * frame_patch_size))
-    self.central_encoder = CentralityEncoder(max_degree=4, dim=central_dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
+    assert len(emb_method) == 3, 'emb_method must be a string of 3 characters'
+    self.node_enabled = (emb_method[0] == '1')
+    self.velocity_enabled = (emb_method[1] == '1')
+    self.centr_enabled = (emb_method[2] == '1')
+    assert any([self.node_enabled, self.velocity_enabled, self.centr_enabled]), "at least one embedding method must be enabled"
+    if self.centr_enabled:
+      central_dim = int(dim / (patch_height * patch_width * frame_patch_size))
+      self.central_encoder = CentralityEncoder(max_degree=4, dim=central_dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
 
     assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
@@ -45,8 +51,11 @@ class VideoViT_GraphEmbd_STB(nn.Module):
     else:
       self.temporal_attn_bias = None
 
-    self.to_patch_embedding_nodeFeature = NodeEmbedding(patch_dim, proj_hidden_dim=64, dim=dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
-    self.to_patch_embedding_nodeVelocity = NodeEmbedding(patch_dim, proj_hidden_dim=64, dim=dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
+    if self.node_enabled:
+      self.to_patch_embedding_nodeFeature = NodeEmbedding(patch_dim, proj_hidden_dim=64, dim=dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
+    
+    if self.velocity_enabled:
+      self.to_patch_embedding_nodeVelocity = NodeEmbedding(patch_dim, proj_hidden_dim=64, dim=dim, patch_height=patch_height, patch_width=patch_width, frame_patch_size=frame_patch_size)
 
     self.pos_embedding = nn.Parameter(torch.randn(1, num_frame_patches, num_image_patches, dim))
 
@@ -69,22 +78,37 @@ class VideoViT_GraphEmbd_STB(nn.Module):
     self.variant = variant
 
   def forward(self, x):
-      
+    
     if self.spatial_attn_bias is not None:
       spatial_attn_bias = self.spatial_attn_bias(x)
 
     if self.temporal_attn_bias is not None:
       temporal_attn_bias = self.temporal_attn_bias(x)
 
-    velocity = torch.zeros_like(x)
-    velocity[:, :, 1:, :, :] = torch.diff(x, dim=2)
-    c = self.central_encoder(x)
+    if self.velocity_enabled:
+      velocity = torch.zeros_like(x)
+      velocity[:, :, 1:, :, :] = torch.diff(x, dim=2)
+      v = self.to_patch_embedding_nodeVelocity(velocity)
 
-    x = self.to_patch_embedding_nodeFeature(x)
-    v = self.to_patch_embedding_nodeVelocity(velocity)
+    if self.centr_enabled:
+      c = self.central_encoder(x)
+
+    if self.node_enabled:
+      x = self.to_patch_embedding_nodeFeature(x)
     
-    x = x + v + c
-
+    ## Need to be refactored
+    if self.node_enabled:
+        if self.velocity_enabled:
+            x += v
+        if self.centr_enabled:
+            x += c
+    elif self.velocity_enabled:
+        x = v
+        if self.centr_enabled:
+            x += c
+    elif self.centr_enabled:
+        x = c
+        
     b, f, n, _ = x.shape
 
     x = x + self.pos_embedding[:, :f, :n]
@@ -125,7 +149,10 @@ class VideoViT_GraphEmbd_STB(nn.Module):
 
   
 if __name__ == "__main__":
-  model = VideoViT_GraphEmbd_STB(image_size=[25,2], image_patch_size=[1, 1], frames=64, frame_patch_size=4, num_classes=60, dim=96, spatial_depth=6, temporal_depth=6, heads=8, mlp_dim=384, pool='cls', channels=3, dim_head=32, dropout=0.1, emb_dropout=0.1, variant='factorized_encoder')
+  model = VideoViT_GraphEmbd_STB(image_size=[25,2], image_patch_size=[1, 1], frames=64, frame_patch_size=4, num_classes=60, dim=96, spatial_depth=6, temporal_depth=6, heads=8, mlp_dim=384, pool='cls', channels=3, dim_head=32, dropout=0.1, emb_dropout=0.1, variant='factorized_encoder', 
+                                 spatial_bias=True, 
+                                 temporal_bias=True, 
+                                 emb_method='010')
   x = torch.randn((16, 3, 64, 25, 2), dtype=torch.float32)  # [Batch, Channel, Frame, Joint, Number of Human]
   output = model(x)
   # torch.onnx.export(model, x, "VideoViT_GraphEmbd_STB.onnx", input_names=["input"], dynamo=True)

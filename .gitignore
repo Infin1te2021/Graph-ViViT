@@ -185,5 +185,5 @@ data/ntu/*.npz
 data/ntu120/denoised_data/
 data/ntu120/raw_data/
 data/ntu120/*.npz
-
+data_pt/*
 config/
