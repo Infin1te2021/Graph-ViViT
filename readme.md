@@ -58,8 +58,8 @@ python seq_transformation.py
 | Node | 86.20 | 89.67* | 81.70 | 83.73 |
 | Velocity | 86.52 | 92.13* | 81.93 | 83.44 |
 | Centrality | 81.21 | 86.15* | 73.96 | 0.83* (69) |
-| Node + Velocity | 86.68* | 91.97* | 82.57 | - |
+| Node + Velocity | 86.68* | 91.97* | 82.57 | 83.51* |
 | Node + Centrality | 86.12 | 91.22 | 80.99 | 82.84 |
-| Velocity + Centrality | - | - | - | - |
+| Velocity + Centrality | 86.49* | 92.20 | 80.13* | 83.41* |
 
 \* Denotes early stopped.
