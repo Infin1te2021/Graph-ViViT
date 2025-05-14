@@ -90,16 +90,21 @@ class GraphAttnBiasSpatial(nn.Module):
     n_layers=3,
     num = 1,
     frames = 64,
-    frame_patch_size=1
+    frame_patch_size=4,
+    euclideanEmbed=True,
+    hopEmbed=True
   ):
     super().__init__()
     self.num_heads = num_heads
     self.multi_hop_max_dist = multi_hop_max_dist
     self.num = num
     self.frame_patch_size = frame_patch_size
+    self.euclideanEmbed = euclideanEmbed
+    self.hopEmbed = hopEmbed
 
     assert frames % frame_patch_size == 0, "Frames must be divisible by frame patch size"
     assert num > 0 and num <= 2, "num must be 1 or 2"
+    assert self.euclideanEmbed or self.hopEmbed, "At least one of euclideanEmbed or hopEmbed must be True"
 
     # Pre-defined edges (fixed skeleton structure)
     edges = [
@@ -116,23 +121,28 @@ class GraphAttnBiasSpatial(nn.Module):
       self.n_node = 25
     
     # Precompute shortest path distances
-    self.register_buffer("dist_matrix", self._compute_shortest_path(), persistent=False)
+    self.register_buffer("dist_matrix", self._compute_shortest_path(), persistent=True)
     
-    # Spatial encoder (3D distance)
-    self.spatial_pos_encoder = SpatialPosEncoder(num_heads, spatial_bias_hidden_dim)
+    # Spatial encoder (3D Euclidean Distance)
+    if euclideanEmbed:
+      self.spatial_pos_encoder = SpatialPosEncoder(num_heads, spatial_bias_hidden_dim)
     
-    # Edge encoder (multi-hop)
-    self.edge_encoder = nn.Embedding(
-      multi_hop_max_dist + 2,  # 0~max_hop + padding(0)
-      num_heads,
-      padding_idx=0
-    )
+    # Hop encoder (multi-hop)
+    if hopEmbed:
+      self.edge_encoder = nn.Embedding(
+        multi_hop_max_dist + 2,  # 0~max_hop + padding(0)
+        num_heads,
+        padding_idx=0
+      )
     
-    # self.graph_token_virtual_distance = nn.Parameter(torch.randn(1, num_heads))
-    ## (Apr 13 2025) Key modification
-    self.graph_token_virtual_distance = nn.Parameter(
-        torch.randn(num_heads, self.n_node)  # 形状 [num_heads, 25/50]
-    )
+    # CLS token fixed (one value)
+    self.graph_token_virtual_distance = nn.Parameter(torch.randn(1, num_heads))
+    
+    ## (Apr 13 2025) Key modification -> Multiple value across tokens
+    # self.graph_token_virtual_distance = nn.Parameter(
+    #   torch.randn(num_heads, self.n_node)  # shape [num_heads, 25/50]
+    # )
+
     # Initialize parameters
     self.apply(lambda module: init_params(module, n_layers=n_layers))
 
@@ -175,16 +185,24 @@ class GraphAttnBiasSpatial(nn.Module):
     x = rearrange(x, 'b c f h w -> (b f w) h c')  # [B*F*W, 25/50, 3] [Num of Graph, 25/50 joints, 3D coordinates]
     n_graph = x.shape[0]
 
+    num_joints = self.n_node + 1 # 25 joints + 1 virtual node (cls)
+    attn_bias = torch.zeros(n_graph, self.num_heads, num_joints, num_joints, device=x.device)
+
     # 1. Compute 3D spatial distances
-    spatial_dist = torch.cdist(x, x, compute_mode="donot_use_mm_for_euclid_dist")  # [n_graph, 25, 25]
+    if self.euclideanEmbed:
+      
+      spatial_dist = torch.cdist(x, x)
+      ### Key modification (Apr 13 2025)
+      # spatial_dist = torch.cdist(x, x, compute_mode="donot_use_mm_for_euclid_dist")  # [n_graph, 25, 25]
 
-    ### Key modification (Apr 13 2025)
-    mean = spatial_dist.mean(dim=(1, 2), keepdim=True)
-    std = spatial_dist.std(dim=(1, 2), keepdim=True)
-    spatial_dist = (spatial_dist - mean) / (std + 1e-5)
-    ###
+      # mean = spatial_dist.mean(dim=(1, 2), keepdim=True)
+      # std = spatial_dist.std(dim=(1, 2), keepdim=True)
+      # spatial_dist = (spatial_dist - mean) / (std + 1e-5)
+      ###
 
-    spatial_bias = self.spatial_pos_encoder(spatial_dist)  # [n_graph, num_heads, 25/50, 25/50]
+      spatial_bias = self.spatial_pos_encoder(spatial_dist)  # [n_graph, num_heads, 25/50, 25/50]
+
+      attn_bias[:, :, 1:, 1:] += spatial_bias
     
     # 2. Compute multi-hop bias
     hop_dist = self.dist_matrix.unsqueeze(0).repeat(n_graph, 1, 1)  # [n_graph, 25/50, 25/50]
@@ -194,18 +212,14 @@ class GraphAttnBiasSpatial(nn.Module):
       hop_dist = torch.clamp(hop_dist, -1, self.multi_hop_max_dist)
       hop_dist[hop_dist == -1] = 0  # Mask invalid to padding_idx=0
     
-    hop_bias = self.edge_encoder(hop_dist).permute(0, 3, 1, 2)  # [n_graph, num_heads, 25/50, 25/50]
-    
-    num_joints = self.n_node + 1 # 25 joints + 1 virtual node (cls)
-    
-    attn_bias = torch.zeros(n_graph, self.num_heads, num_joints, num_joints, device=x.device)
+      hop_bias = self.edge_encoder(hop_dist).permute(0, 3, 1, 2)  # [n_graph, num_heads, 25/50, 25/50]
 
-    # Encode hop distances
-    attn_bias[:, :, 1:, 1:] = spatial_bias + hop_bias
+      attn_bias[:, :, 1:, 1:] += hop_bias
     
     # (Apr 13 2025) Key modification
-    # virtual_bias = self.graph_token_virtual_distance.view(1, self.num_heads, 1)
-    virtual_bias = self.graph_token_virtual_distance.unsqueeze(0)
+    # virtual_bias = self.graph_token_virtual_distance.unsqueeze(0)
+    virtual_bias = self.graph_token_virtual_distance.view(1, self.num_heads, 1)
+
     attn_bias[:, :, 1:, 0] += virtual_bias
     attn_bias[:, :, 0, 1:] += virtual_bias
     
@@ -245,14 +259,14 @@ class GraphAttnBiasTemporal(nn.Module):
     # Temporal encoder (temporal distance)
     self.temporal_pos_encoder = TemporalPosEncoder(num_heads, temporal_hidden_dim)
 
-    self.register_buffer("pos_matrix", self._create_position_matrix(self.patch_num), persistent=False)
+    self.register_buffer("pos_matrix", self._create_position_matrix(self.patch_num), persistent=True)
 
+
+    self.temporal_token_virtual_pos = nn.Parameter(torch.randn(1, num_heads, 1))
     # (Apr 13 2025) Key modification
-    # self.temporal_token_virtual_pos = nn.Parameter(torch.randn(1, num_heads, 1))
-
-    self.temporal_token_virtual_pos = nn.Parameter(
-      torch.randn(num_heads, num_frame_patches)  # [H, num_patches]
-    )
+    # self.temporal_token_virtual_pos = nn.Parameter(
+    #   torch.randn(num_heads, num_frame_patches)  # [H, num_patches]
+    # )
   
   def _create_position_matrix(self, num_patches):
 
@@ -273,8 +287,9 @@ class GraphAttnBiasTemporal(nn.Module):
     final_bias[:, :, 1:, 1:] = temporal_bias
 
     # (Apr 13 2025) Key modification
-    # virtual_bias = self.temporal_token_virtual_pos.expand(B, -1, -1)
-    virtual_bias = self.temporal_token_virtual_pos.unsqueeze(0)
+    # virtual_bias = self.temporal_token_virtual_pos.unsqueeze(0)
+    virtual_bias = self.temporal_token_virtual_pos.expand(B, -1, -1)
+
     final_bias[:, :, 1:, 0] += virtual_bias
     final_bias[:, :, 0, 1:] += virtual_bias
 

@@ -36,7 +36,7 @@ class VideoViT_GraphEmbd_STB(nn.Module):
     self.global_average_pool = pool == 'mean'
 
     if spatial_bias:
-      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size)
+      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size, euclideanEmbed=True, hopEmbed=True)
     else:
       self.spatial_attn_bias = None
 
