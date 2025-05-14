@@ -121,7 +121,7 @@ class GraphAttnBiasSpatial(nn.Module):
       self.n_node = 25
     
     # Precompute shortest path distances
-    self.register_buffer("dist_matrix", self._compute_shortest_path(), persistent=True)
+    self.register_buffer("dist_matrix", self._compute_shortest_path(), persistent=False)
     
     # Spatial encoder (3D Euclidean Distance)
     if euclideanEmbed:
@@ -205,16 +205,17 @@ class GraphAttnBiasSpatial(nn.Module):
       attn_bias[:, :, 1:, 1:] += spatial_bias
     
     # 2. Compute multi-hop bias
-    hop_dist = self.dist_matrix.unsqueeze(0).repeat(n_graph, 1, 1)  # [n_graph, 25/50, 25/50]
-    
-    # Clip hop distances
-    if self.multi_hop_max_dist > 0:
-      hop_dist = torch.clamp(hop_dist, -1, self.multi_hop_max_dist)
-      hop_dist[hop_dist == -1] = 0  # Mask invalid to padding_idx=0
-    
-      hop_bias = self.edge_encoder(hop_dist).permute(0, 3, 1, 2)  # [n_graph, num_heads, 25/50, 25/50]
+    if self.hopEmbed:
+      hop_dist = self.dist_matrix.unsqueeze(0).repeat(n_graph, 1, 1)  # [n_graph, 25/50, 25/50]
+      
+      # Clip hop distances
+      if self.multi_hop_max_dist > 0:
+        hop_dist = torch.clamp(hop_dist, -1, self.multi_hop_max_dist)
+        hop_dist[hop_dist == -1] = 0  # Mask invalid to padding_idx=0
+      
+        hop_bias = self.edge_encoder(hop_dist).permute(0, 3, 1, 2)  # [n_graph, num_heads, 25/50, 25/50]
 
-      attn_bias[:, :, 1:, 1:] += hop_bias
+        attn_bias[:, :, 1:, 1:] += hop_bias
     
     # (Apr 13 2025) Key modification
     # virtual_bias = self.graph_token_virtual_distance.unsqueeze(0)
@@ -259,7 +260,7 @@ class GraphAttnBiasTemporal(nn.Module):
     # Temporal encoder (temporal distance)
     self.temporal_pos_encoder = TemporalPosEncoder(num_heads, temporal_hidden_dim)
 
-    self.register_buffer("pos_matrix", self._create_position_matrix(self.patch_num), persistent=True)
+    self.register_buffer("pos_matrix", self._create_position_matrix(self.patch_num), persistent=False)
 
 
     self.temporal_token_virtual_pos = nn.Parameter(torch.randn(1, num_heads, 1))

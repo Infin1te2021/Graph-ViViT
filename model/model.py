@@ -13,7 +13,7 @@ def pair(t):
 
 
 class VideoViT_GraphEmbd_STB(nn.Module):
-  def __init__(self, *, image_size, image_patch_size, frames, frame_patch_size, num_classes, dim, spatial_depth, temporal_depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., variant = 'factorized_encoder', spatial_bias=True, temporal_bias=True):
+  def __init__(self, *, image_size, image_patch_size, frames, frame_patch_size, num_classes, dim, spatial_depth, temporal_depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0., variant = 'factorized_encoder', spatial_bias=True, temporal_bias=True, euclideanEmbed=True, hopEmbed=True):
     super().__init__()
     image_height, image_width = pair(tuple(image_size))
     patch_height, patch_width = pair(tuple(image_patch_size))
@@ -36,7 +36,7 @@ class VideoViT_GraphEmbd_STB(nn.Module):
     self.global_average_pool = pool == 'mean'
 
     if spatial_bias:
-      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size, euclideanEmbed=True, hopEmbed=True)
+      self.spatial_attn_bias = GraphAttnBiasSpatial(num_heads=heads, spatial_bias_hidden_dim=64, multi_hop_max_dist=4, n_layers=3, num=patch_width, frames=frames, frame_patch_size=frame_patch_size, euclideanEmbed=euclideanEmbed, hopEmbed=hopEmbed)
     else:
       self.spatial_attn_bias = None
 
