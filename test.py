@@ -12,6 +12,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import re
 from pathlib import Path
+import os
+
+import sys
+if sys.platform == 'win32':
+  import pathlib
+  pathlib.PosixPath = pathlib.WindowsPath
 
 def main(config):
   logger = config.get_logger('test')
@@ -23,7 +29,7 @@ def main(config):
     shuffle=False,
     validation_split=0.0,
     training=False,
-    num_workers=64
+    num_workers=5
   )
 
   # build model architecture
@@ -98,10 +104,10 @@ def main(config):
     all_targets = torch.cat(all_targets).numpy()
     cm = confusion_matrix(all_targets, all_preds)
 
-    model_dir = Path(config.resume).parent.parent.name
-    parts = model_dir.split('_')
-
-    test_code = parts[2] if len(parts) > 2 else 'Unknown'
+    parent_dir = os.path.dirname(config.resume)
+    dir_name = os.path.basename(parent_dir)
+    parts = dir_name.split('_')
+    test_code = parts[1] if len(parts) == 2 else 'Unknown'
 
     match = re.match(r'(\d+)([A-Za-z]+)', test_code)
     dataset, code = match.groups() if match else ('Unknown', 'Unknown')
